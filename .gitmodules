@@ -1,0 +1,6 @@
+[submodule "lib/RadioLib"]
+	path = lib/RadioLib
+	url = https://github.com/jgromes/RadioLib
+[submodule "lib/pico-sdk"]
+	path = lib/pico-sdk
+	url = https://github.com/raspberrypi/pico-sdk
