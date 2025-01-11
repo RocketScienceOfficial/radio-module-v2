@@ -8,10 +8,9 @@ pico_sdk_init()
 
 add_subdirectory(lib/RadioLib)
 add_subdirectory(lib/datalink-c)
-add_subdirectory(lib/communication)
 
 add_executable(radio_module src/main.cpp)
-target_link_libraries(radio_module pico_stdlib hardware_spi hardware_gpio hardware_timer pico_multicore hardware_pwm RadioLib datalink communication_utils)
+target_link_libraries(radio_module pico_stdlib hardware_spi hardware_gpio hardware_timer pico_multicore hardware_pwm RadioLib datalink)
 
 pico_enable_stdio_usb(radio_module 1)
 pico_enable_stdio_uart(radio_module 0)
