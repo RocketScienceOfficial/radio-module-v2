@@ -5,7 +5,7 @@
 #include <datalink.h>
 #include <cobs.h>
 
-static PicoHal *s_HAL = new PicoHal(spi0, SPI_PIN_MISO, SPI_PIN_MOSI, SPI_PIN_SCK);
+static PicoHal *s_HAL = new PicoHal(SPI_INST, SPI_PIN_MISO, SPI_PIN_MOSI, SPI_PIN_SCK);
 static SX1268 s_Radio = new Module(s_HAL, LORA_PIN_CS, LORA_PIN_DIO1, LORA_PIN_RESET, LORA_PIN_BUSY);
 static volatile bool s_RadioFlag;
 static bool s_Transmitting;
