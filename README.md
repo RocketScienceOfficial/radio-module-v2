@@ -3,6 +3,8 @@
 ## Overview
 Second version of radio module for rocket flight computer.
 
+Uses UART along with DataLink protocol to communicate with OBC.
+
 ## Getting Started
 
 ### Download
