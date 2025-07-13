@@ -109,85 +109,87 @@ static void _handle_radio(void)
     static uint8_t receiveBuffer[512];
     static datalink_frame_structure_radio_t frame;
 
-    if (s_RadioFlag)
+    if (!s_RadioFlag)
     {
-        s_RadioFlag = false;
+        return;
+    }
+    
+    s_RadioFlag = false;
 
-        if (s_Transmitting)
+    if (s_Transmitting)
+    {
+        if (!s_Radio.checkIrq(RADIOLIB_IRQ_TX_DONE))
         {
-            if (!s_Radio.checkIrq(RADIOLIB_IRQ_TX_DONE))
-            {
-                return;
-            }
-
-            s_Radio.finishTransmit();
-
-            printf("Finished transmission!\n");
-
-            if (s_DisableNextTransmit)
-            {
-                gpio_put(LORA_PIN_TXEN, 0);
-                gpio_put(LORA_PIN_RXEN, 1);
-
-                s_Transmitting = false;
-                s_DisableNextTransmit = false;
-
-                s_Radio.startReceive();
-
-                printf("Started receiving...\n");
-            }
-
-            datalink_frame_structure_serial_t ack = {
-                .msgId = DATALINK_MESSAGE_RADIO_MODULE_TX_DONE,
-                .len = 0,
-            };
-            _send_frame_uart(&ack);
+            return;
         }
-        else
+
+        s_Radio.finishTransmit();
+
+        printf("Finished transmission!\n");
+
+        if (s_DisableNextTransmit)
         {
-            if (!s_Radio.checkIrq(RADIOLIB_IRQ_RX_DONE))
+            gpio_put(LORA_PIN_TXEN, 0);
+            gpio_put(LORA_PIN_RXEN, 1);
+
+            s_Transmitting = false;
+            s_DisableNextTransmit = false;
+
+            s_Radio.startReceive();
+
+            printf("Started receiving...\n");
+        }
+
+        datalink_frame_structure_serial_t ack = {
+            .msgId = DATALINK_MESSAGE_RADIO_MODULE_TX_DONE,
+            .len = 0,
+        };
+        _send_frame_uart(&ack);
+    }
+    else
+    {
+        if (!s_Radio.checkIrq(RADIOLIB_IRQ_RX_DONE))
+        {
+            return;
+        }
+
+        size_t packetLength = s_Radio.getPacketLength();
+
+        if (packetLength > 0 && packetLength <= sizeof(receiveBuffer))
+        {
+            printf("Received %d bytes from radio!\n", packetLength);
+
+            s_Radio.readData(receiveBuffer, packetLength);
+
+            if (!datalink_deserialize_frame_radio(&frame, receiveBuffer, packetLength))
             {
+                printf("Couldn't deserialize radio frame!\n");
+
                 return;
             }
 
-            size_t packetLength = s_Radio.getPacketLength();
-
-            if (packetLength > 0 && packetLength <= sizeof(receiveBuffer))
+            if (frame.srcId != GCS_ID || frame.destId != DEVICE_ID)
             {
-                printf("Received %d bytes from radio!\n", packetLength);
+                printf("Couldn't validate ids!\n");
 
-                s_Radio.readData(receiveBuffer, packetLength);
-
-                if (!datalink_deserialize_frame_radio(&frame, receiveBuffer, packetLength))
-                {
-                    printf("Couldn't deserialize radio frame!\n");
-
-                    return;
-                }
-
-                if (frame.srcId != GCS_ID || frame.destId != DEVICE_ID)
-                {
-                    printf("Couldn't validate ids!\n");
-
-                    return;
-                }
-
-                if (frame.msgId != DATALINK_MESSAGE_TELEMETRY_RESPONSE)
-                {
-                    printf("Invalid message id!\n");
-
-                    return;
-                }
-
-                printf("Successfully parsed packet! (Sequence: %d)\n", frame.seq);
-
-                datalink_frame_structure_serial_t responseFrame = {
-                    .msgId = DATALINK_MESSAGE_TELEMETRY_RESPONSE,
-                    .len = frame.len,
-                };
-                memcpy(responseFrame.payload, frame.payload, frame.len);
-                _send_frame_uart(&responseFrame);
+                return;
             }
+
+            if (frame.msgId != DATALINK_MESSAGE_TELEMETRY_RESPONSE)
+            {
+                printf("Invalid message id!\n");
+
+                return;
+            }
+
+            printf("Successfully parsed packet! (Sequence: %d)\n", frame.seq);
+
+            datalink_frame_structure_serial_t responseFrame = {
+                .msgId = DATALINK_MESSAGE_TELEMETRY_RESPONSE,
+                .len = frame.len,
+            };
+            memcpy(responseFrame.payload, frame.payload, frame.len);
+            _send_frame_uart(&responseFrame);
         }
     }
 }
