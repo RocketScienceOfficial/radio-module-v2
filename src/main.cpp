@@ -1,5 +1,6 @@
 #include "config.h"
 #include <pico/stdlib.h>
+#include <hardware/spi.h>
 #include <RadioLib.h>
 #include <hal/RPiPico/PicoHal.h>
 #include <datalink.h>
@@ -7,10 +8,9 @@
 
 static PicoHal *s_HAL = new PicoHal(SPI_INST, SPI_PIN_MISO, SPI_PIN_MOSI, SPI_PIN_SCK);
 static SX1268 s_Radio = new Module(s_HAL, LORA_PIN_CS, LORA_PIN_DIO1, LORA_PIN_RESET, LORA_PIN_BUSY);
-static volatile bool s_RadioFlag;
+static volatile bool s_RadioOpDoneFlag;
 static bool s_Transmitting;
 static bool s_DisableNextTransmit;
-static bool s_FinishedTransmission;
 
 static void _init(void);
 static void _read_uart(void);
@@ -53,7 +53,7 @@ static void _init(void)
 
     gpio_init(LORA_PIN_RXEN);
     gpio_set_dir(LORA_PIN_RXEN, true);
-    gpio_put(LORA_PIN_RXEN, 1);
+    gpio_put(LORA_PIN_RXEN, 0);
 
     printf("[SX1268] Initializing ... ");
 
@@ -62,6 +62,11 @@ static void _init(void)
     if (state != RADIOLIB_ERR_NONE)
     {
         printf("failed, code %d\n", state);
+
+        while (true)
+        {
+            tight_loop_contents();
+        }
     }
     else
     {
@@ -69,8 +74,6 @@ static void _init(void)
     }
 
     s_Radio.setDio1Action(_set_radio_flag);
-
-    s_FinishedTransmission = true;
 }
 
 static void _read_uart(void)
@@ -112,12 +115,12 @@ static void _handle_radio(void)
     static uint8_t receiveBuffer[512];
     static datalink_frame_structure_radio_t frame;
 
-    if (!s_RadioFlag)
+    if (!s_RadioOpDoneFlag)
     {
         return;
     }
 
-    s_RadioFlag = false;
+    s_RadioOpDoneFlag = false;
 
     if (s_Transmitting)
     {
@@ -126,7 +129,6 @@ static void _handle_radio(void)
             return;
         }
 
-        s_FinishedTransmission = true;
         s_Radio.finishTransmit();
 
         printf("Finished transmission!\n");
@@ -200,13 +202,10 @@ static void _handle_radio(void)
 
 static void _process_new_uart_frame(const datalink_frame_structure_serial_t *frame)
 {
-    if (!s_FinishedTransmission)
-    {
-        return;
-    }
-
     if (frame->msgId == DATALINK_MESSAGE_TELEMETRY_DATA_OBC || frame->msgId == DATALINK_MESSAGE_TELEMETRY_DATA_OBC_WITH_RESPONSE)
     {
+        printf("Processing next UART frame with message id '%d' and length '%d'\n", frame->msgId, frame->len);
+
         static uint8_t sequence = 0;
 
         datalink_frame_structure_radio_t radioFrame = (datalink_frame_structure_radio_t){
@@ -236,7 +235,6 @@ static void _process_new_uart_frame(const datalink_frame_structure_serial_t *fra
                 s_DisableNextTransmit = true;
             }
 
-            s_FinishedTransmission = false;
             s_Radio.startTransmit(buffer, len);
 
             printf("Started transmitting %d bytes through Radio!\n", len);
@@ -266,5 +264,5 @@ static void _send_frame_uart(const datalink_frame_structure_serial_t *frame)
 
 static void _set_radio_flag(void)
 {
-    s_RadioFlag = true;
+    s_RadioOpDoneFlag = true;
 }
