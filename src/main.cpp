@@ -69,6 +69,8 @@ static void _init(void)
     }
 
     s_Radio.setDio1Action(_set_radio_flag);
+
+    s_FinishedTransmission = true;
 }
 
 static void _read_uart(void)
