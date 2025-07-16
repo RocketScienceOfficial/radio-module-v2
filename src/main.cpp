@@ -10,6 +10,7 @@ static SX1268 s_Radio = new Module(s_HAL, LORA_PIN_CS, LORA_PIN_DIO1, LORA_PIN_R
 static volatile bool s_RadioFlag;
 static bool s_Transmitting;
 static bool s_DisableNextTransmit;
+static bool s_FinishedTransmission;
 
 static void _init(void);
 static void _read_uart(void);
@@ -113,7 +114,7 @@ static void _handle_radio(void)
     {
         return;
     }
-    
+
     s_RadioFlag = false;
 
     if (s_Transmitting)
@@ -123,6 +124,7 @@ static void _handle_radio(void)
             return;
         }
 
+        s_FinishedTransmission = true;
         s_Radio.finishTransmit();
 
         printf("Finished transmission!\n");
@@ -196,7 +198,10 @@ static void _handle_radio(void)
 
 static void _process_new_uart_frame(const datalink_frame_structure_serial_t *frame)
 {
-    static uint8_t buffer[512];
+    if (!s_FinishedTransmission)
+    {
+        return;
+    }
 
     if (frame->msgId == DATALINK_MESSAGE_TELEMETRY_DATA_OBC || frame->msgId == DATALINK_MESSAGE_TELEMETRY_DATA_OBC_WITH_RESPONSE)
     {
@@ -211,6 +216,7 @@ static void _process_new_uart_frame(const datalink_frame_structure_serial_t *fra
         };
         memcpy(radioFrame.payload, frame->payload, frame->len);
 
+        static uint8_t buffer[512];
         int len = sizeof(buffer);
 
         if (datalink_serialize_frame_radio(&radioFrame, buffer, &len))
@@ -228,6 +234,7 @@ static void _process_new_uart_frame(const datalink_frame_structure_serial_t *fra
                 s_DisableNextTransmit = true;
             }
 
+            s_FinishedTransmission = false;
             s_Radio.startTransmit(buffer, len);
 
             printf("Started transmitting %d bytes through Radio!\n", len);
