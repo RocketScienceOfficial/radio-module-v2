@@ -20,6 +20,7 @@
 #define LORA_BANDWIDTH 250
 #define LORA_SF 7
 #define LORA_TX_POWER 17
+#define LORA_WATCHDOG_TIMEOUT_MS 500
 
 #define UART_INST uart0
 #define UART_PIN_TX 12

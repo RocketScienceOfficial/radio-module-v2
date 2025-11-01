@@ -1,6 +1,7 @@
 #include "config.h"
 #include <pico/stdlib.h>
 #include <hardware/spi.h>
+#include <hardware/watchdog.h>
 #include <RadioLib.h>
 #include <hal/RPiPico/PicoHal.h>
 #include <datalink.h>
@@ -130,6 +131,7 @@ static void _handle_radio(void)
         }
 
         s_Radio.finishTransmit();
+        watchdog_disable();
 
         printf("Finished transmission!\n");
 
@@ -235,6 +237,7 @@ static void _process_new_uart_frame(const datalink_frame_structure_serial_t *fra
                 s_DisableNextTransmit = true;
             }
 
+            watchdog_enable(LORA_WATCHDOG_TIMEOUT_MS, true);
             s_Radio.startTransmit(buffer, len);
 
             printf("Started transmitting %d bytes through Radio!\n", len);
